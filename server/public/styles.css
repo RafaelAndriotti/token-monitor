@@ -1,0 +1,1418 @@
+/* Token Monitor — palco dos agentes.
+   Tema claro por padrão, escuro quando o sistema pede. Sem nesting: só media
+   queries simples, para funcionar sem etapa de build. */
+
+:root {
+  --bg: #fbfcfe;
+  --surface: #ffffff;
+  --surface-2: #f4f6fb;
+  --line: #e6eaf2;
+  --line-2: #d8def0;
+  --ink: #141a24;
+  --ink-2: #44506a;
+  --muted: #7b879e;
+
+  --accent: #4f46e5;
+  --ok: #16a34a;
+  --warn: #c2770b;
+  --bad: #dc2626;
+
+  /* A cor vive nos personagens e nos dados; o resto da tela fica quieto. */
+  --role-orquestrador: #ea580c;
+  --role-designer: #d946ef;
+  --role-frontend: #3b82f6;
+  --role-backend: #22c55e;
+  --role-revisor: #eab308;
+  --role-pesquisador: #7c3aed;
+  --role-devops: #0d9488;
+  --role-dados: #e11d48;
+  --role-qa: #0ea5e9;
+  --role-generico: #64748b;
+
+  /* Curvas e tempos: ease-out forte para entradas, `ease` para cor. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+  --t-reveal: 800ms;
+
+  --radius: 18px;
+  --card-shadow: 0 1px 2px rgba(20, 26, 36, 0.04), 0 14px 32px -22px rgba(20, 26, 36, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b0f17;
+    --surface: #131a27;
+    --surface-2: #19212f;
+    --line: #26314a;
+    --line-2: #32405e;
+    --ink: #e9eef7;
+    --ink-2: #aab6cb;
+    --muted: #7a87a0;
+
+    --accent: #818cf8;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+
+    --role-orquestrador: #fb923c;
+    --role-designer: #e879f9;
+    --role-frontend: #60a5fa;
+    --role-backend: #4ade80;
+    --role-revisor: #fbbf24;
+    --role-pesquisador: #a78bfa;
+    --role-devops: #2dd4bf;
+    --role-dados: #fb7185;
+    --role-qa: #38bdf8;
+    --role-generico: #94a3b8;
+
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 32px -22px rgba(0, 0, 0, 0.7);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 26px 20px 72px;
+}
+
+/* --- Cabeçalho: sem herói, 22px, a conexão como texto ------------------ */
+
+header.top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.015em;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background var(--t-ui) ease;
+}
+
+.conn[data-on='true'] .conn-dot {
+  background: var(--ok);
+  animation: pulse-dot 2.4s var(--ease-in-out) infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* --- Controles --------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.seg {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.seg button {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--t-hover) ease, color var(--t-hover) ease;
+}
+
+.seg button:hover {
+  color: var(--ink);
+}
+
+/* Item ativo: um degrau de tom, não uma pílula colorida. */
+.seg button[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+select,
+input[type='text'],
+input[type='number'] {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 9px;
+}
+
+button.ghost {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: transform var(--t-press) var(--ease-out), color var(--t-hover) ease,
+    border-color var(--t-hover) ease;
+}
+
+button.ghost:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+button.ghost:active {
+  transform: scale(0.97);
+}
+
+button.primary {
+  appearance: none;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: transform var(--t-press) var(--ease-out), opacity var(--t-hover) ease;
+}
+
+button.primary:hover {
+  opacity: 0.86;
+}
+
+button.primary:active {
+  transform: scale(0.97);
+}
+
+/* --- KPIs: tipografia, não azulejos ------------------------------------ */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+}
+
+.kpi {
+  padding: 14px 20px 15px;
+  border-left: 1px solid var(--line);
+}
+
+.kpi:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpi-value {
+  font-size: 27px;
+  font-weight: 640;
+  letter-spacing: -0.025em;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* --- Palco ------------------------------------------------------------- */
+
+.stage {
+  margin-bottom: 26px;
+}
+
+.stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.stage-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.run-line {
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 20px;
+}
+
+.run-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-live {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  margin-right: 7px;
+  animation: pulse-dot 1.6s var(--ease-in-out) infinite;
+}
+
+.lead {
+  display: flex;
+  justify-content: center;
+}
+
+/* O feixe desenhado em pixels reais: os cantos arredondados não distorcem. */
+.beam {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+
+.beam path {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transition: stroke var(--t-ui) ease;
+}
+
+.beam circle {
+  fill: var(--line-2);
+  transition: fill var(--t-ui) ease;
+}
+
+.beam [data-busy='true'] {
+  stroke: var(--accent);
+  stroke-dasharray: 4 7;
+  animation: beam-flow 900ms linear infinite;
+}
+
+.beam circle[data-busy='true'] {
+  fill: var(--accent);
+}
+
+@keyframes beam-flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+.crew {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
+  gap: 14px;
+}
+
+/* --- Card de um agente ------------------------------------------------- */
+
+.actor {
+  --role: var(--role-generico);
+  /* Todo tom do personagem é derivado daqui: corpo, membros, acessório de
+     cabeça e o que ele segura. Trocar `--role` troca a figura inteira. */
+  --role-lite: color-mix(in oklab, var(--role) 76%, white);
+  --role-deep: color-mix(in oklab, var(--role) 84%, black);
+  --role-top: color-mix(in oklab, var(--role) 68%, white);
+  --role-top-lite: color-mix(in oklab, var(--role) 54%, white);
+  --role-side: color-mix(in oklab, var(--role) 82%, black);
+  --role-side-deep: color-mix(in oklab, var(--role) 64%, black);
+  --role-limb: color-mix(in oklab, var(--role) 88%, black);
+  --role-limb-deep: color-mix(in oklab, var(--role) 64%, black);
+  --role-soft: color-mix(in oklab, var(--role) 22%, var(--surface));
+  --role-soft-top: color-mix(in oklab, var(--role) 13%, var(--surface));
+  --role-soft-side: color-mix(in oklab, var(--role) 34%, var(--surface));
+  --role-gear: color-mix(in oklab, var(--role) 52%, #241c42);
+
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 14px 16px;
+  text-align: center;
+  box-shadow: var(--card-shadow);
+  transition: border-color var(--t-ui) ease, box-shadow var(--t-ui) ease;
+}
+
+.actor[data-role='orquestrador'] {
+  --role: var(--role-orquestrador);
+}
+.actor[data-role='designer'] {
+  --role: var(--role-designer);
+}
+.actor[data-role='frontend'] {
+  --role: var(--role-frontend);
+}
+.actor[data-role='backend'] {
+  --role: var(--role-backend);
+}
+.actor[data-role='revisor'] {
+  --role: var(--role-revisor);
+}
+.actor[data-role='pesquisador'] {
+  --role: var(--role-pesquisador);
+}
+.actor[data-role='devops'] {
+  --role: var(--role-devops);
+}
+.actor[data-role='dados'] {
+  --role: var(--role-dados);
+}
+.actor[data-role='qa'] {
+  --role: var(--role-qa);
+}
+
+.actor[data-busy='true'] {
+  border-color: color-mix(in oklab, var(--role) 45%, var(--line));
+}
+
+.actor.lead-actor {
+  width: min(100%, 340px);
+}
+
+.actor-fig {
+  display: block;
+  margin: 0 auto;
+}
+
+.actor-fig svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+.actor-name {
+  font-weight: 640;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+
+.actor-role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--role);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.actor-state {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 9px;
+  min-height: 19px;
+}
+
+.actor-state strong {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.actor-tokens-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-top: 1px;
+}
+
+.actor-tokens {
+  font-size: 25px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  margin-top: 2px;
+}
+
+.actor-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.actor-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--role);
+  transition: width var(--t-reveal) var(--ease-expo);
+}
+
+.actor-quota {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 7px;
+}
+
+.actor-quota[data-state='atencao'] {
+  color: var(--warn);
+}
+
+.actor-quota[data-state='estourado'] {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* --- O personagem ------------------------------------------------------ */
+
+.claude {
+  overflow: visible;
+}
+
+/* Os gradientes do corpo. Cada figura tem os seus (id por instância), então
+   estas classes só dizem de que tom é cada parada. */
+.stop-lite {
+  stop-color: var(--role-lite);
+}
+.stop-base {
+  stop-color: var(--role);
+}
+.stop-deep {
+  stop-color: var(--role-deep);
+}
+.stop-top {
+  stop-color: var(--role-top);
+}
+.stop-top-lite {
+  stop-color: var(--role-top-lite);
+}
+.stop-side {
+  stop-color: var(--role-side);
+}
+.stop-side-deep {
+  stop-color: var(--role-side-deep);
+}
+.stop-limb {
+  stop-color: var(--role-limb);
+}
+.stop-limb-deep {
+  stop-color: var(--role-limb-deep);
+}
+
+/* O brilho: é ele que tira o aspecto de superfície chapada. */
+.vx-sheen {
+  fill: #ffffff;
+  opacity: 0.16;
+}
+
+.vx-sheen-body {
+  opacity: 0.2;
+}
+
+/* Acessório de cabeça e bola da antena: um tom escuro e saturado, distinto
+   do corpo em qualquer papel. */
+.vx-gear {
+  fill: var(--role-gear);
+}
+
+.vx-gear-stroke {
+  fill: none;
+  stroke: var(--role-gear);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vx-ball {
+  fill: var(--role-gear);
+}
+
+.vx-lamp {
+  fill: color-mix(in oklab, var(--role) 26%, white);
+}
+
+/* O que ele segura. */
+.vx-mark {
+  fill: var(--role);
+}
+
+.vx-mark-stroke {
+  fill: none;
+  stroke: var(--role);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vx-glass {
+  fill: color-mix(in oklab, var(--role) 16%, var(--surface));
+  stroke: var(--role);
+  stroke-width: 4;
+}
+
+.vx-eye {
+  fill: #ffffff;
+}
+
+.vx-mouth {
+  fill: none;
+  stroke: rgba(10, 14, 22, 0.4);
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+/* Sombra em duas camadas: a de fora difunde, a de dentro fixa o contato. */
+.vx-shadow-far {
+  fill: color-mix(in oklab, var(--role) 11%, transparent);
+}
+
+.vx-shadow-near {
+  fill: color-mix(in oklab, var(--role) 19%, transparent);
+}
+
+.vx-shadow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: shadow-breathe 4.6s var(--ease-in-out) infinite;
+}
+
+/* --- Movimento de repouso ---------------------------------------------
+   Nada fica completamente parado: o corpo flutua, os membros balançam em
+   ritmos diferentes e nenhum ciclo é múltiplo do outro, então o conjunto
+   nunca volta à mesma pose. É o que tira a rigidez. */
+
+.vx-float {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: float 4.6s var(--ease-in-out) infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  35% {
+    transform: translateY(-4px) rotate(-0.7deg);
+  }
+  70% {
+    transform: translateY(-2px) rotate(0.6deg);
+  }
+}
+
+@keyframes shadow-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(0.9);
+    opacity: 0.74;
+  }
+}
+
+.vx-leg {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: leg-sway 3.9s var(--ease-in-out) infinite;
+}
+
+@keyframes leg-sway {
+  0%,
+  100% {
+    transform: rotate(0deg) scaleY(1);
+  }
+  50% {
+    transform: rotate(3deg) scaleY(0.97);
+  }
+}
+
+.vx-arm-right {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: arm-sway 5.3s var(--ease-in-out) infinite;
+}
+
+@keyframes arm-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
+}
+
+.vx-antenna {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: antenna-idle 6.1s var(--ease-in-out) infinite;
+}
+
+@keyframes antenna-idle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+.vx-prop {
+  transform-box: view-box;
+  animation: prop-idle 5.7s var(--ease-in-out) infinite;
+}
+
+@keyframes prop-idle {
+  0%,
+  100% {
+    transform: translate(152px, 58px);
+  }
+  50% {
+    transform: translate(152px, 54px);
+  }
+}
+
+/* Escondidos até o estado pedir. */
+.vx-think,
+.vx-badge {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Os lampejos ficam sempre na cena, discretos; só ganham ritmo no trabalho. */
+.vx-sparks {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.vx-sparks path {
+  stroke: var(--role);
+  stroke-width: 4;
+  stroke-linecap: round;
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+}
+
+.vx-think circle {
+  fill: var(--role);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+/* --- pensando ---------------------------------------------------------- */
+
+.claude[data-state='pensando'] .vx-think {
+  opacity: 1;
+}
+
+.claude[data-state='pensando'] .vx-think circle {
+  animation: think-bubble 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes think-bubble {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateY(4px) scale(0.75);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1);
+  }
+}
+
+.claude[data-state='pensando'] .vx-antenna {
+  animation: antenna-tilt 2.4s var(--ease-in-out) infinite;
+}
+
+@keyframes antenna-tilt {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+/* --- trabalhando -------------------------------------------------------- */
+
+.claude[data-state='trabalhando'] .vx-float {
+  animation: work-bounce 820ms var(--ease-in-out) infinite;
+}
+
+/* Agacha ao descer e estica ao subir: é o que dá peso ao salto. */
+@keyframes work-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.03, 0.96);
+  }
+  45% {
+    transform: translateY(-9px) scale(0.97, 1.04);
+  }
+  75% {
+    transform: translateY(-2px) scale(1, 1);
+  }
+}
+
+.claude[data-state='trabalhando'] .vx-shadow {
+  animation: shadow-breathe 820ms var(--ease-in-out) infinite;
+}
+
+.claude[data-state='trabalhando'] .vx-leg {
+  animation: leg-step 820ms var(--ease-in-out) infinite;
+}
+
+@keyframes leg-step {
+  0%,
+  100% {
+    transform: rotate(0deg) scaleY(1);
+  }
+  45% {
+    transform: rotate(-9deg) scaleY(0.88);
+  }
+}
+
+.claude[data-state='trabalhando'] .vx-arm-right {
+  animation: arm-work 560ms var(--ease-in-out) infinite;
+}
+
+@keyframes arm-work {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-16deg);
+  }
+}
+
+.claude[data-state='trabalhando'] .vx-prop {
+  animation: prop-work 820ms var(--ease-in-out) infinite;
+}
+
+@keyframes prop-work {
+  0%,
+  100% {
+    transform: translate(152px, 58px) rotate(0deg);
+  }
+  45% {
+    transform: translate(152px, 49px) rotate(-2deg);
+  }
+}
+
+.claude[data-state='trabalhando'] .vx-led {
+  animation: led 700ms steps(2, jump-none) infinite;
+}
+
+@keyframes led {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.vx-bar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.claude[data-state='trabalhando'] .vx-bar {
+  animation: bar-grow 1.1s var(--ease-out) infinite;
+}
+
+@keyframes bar-grow {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.vx-lens {
+  transform-box: fill-box;
+  transform-origin: 30% 30%;
+}
+
+.claude[data-state='trabalhando'] .vx-lens {
+  animation: lens-scan 2s var(--ease-in-out) infinite;
+}
+
+@keyframes lens-scan {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(14px, -10px);
+  }
+}
+
+.claude[data-state='trabalhando'] .vx-sparks {
+  opacity: 1;
+}
+
+.claude[data-state='trabalhando'] .vx-sparks path {
+  animation: spark 950ms var(--ease-out) infinite;
+}
+
+.vx-sparks path:nth-child(2) {
+  animation-delay: 150ms;
+}
+.vx-sparks path:nth-child(3) {
+  animation-delay: 300ms;
+}
+.vx-sparks path:nth-child(4) {
+  animation-delay: 90ms;
+}
+.vx-sparks path:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+@keyframes spark {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scaleX(0.3);
+  }
+  40% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* --- concluido ---------------------------------------------------------- */
+
+.claude[data-state='concluido'] .vx-float {
+  animation: done-pop 760ms var(--ease-expo) 1 both;
+}
+
+@keyframes done-pop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-14px) scale(0.95, 1.07);
+  }
+  60% {
+    transform: translateY(0) scale(1.06, 0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.claude[data-state='concluido'] .vx-mouth,
+.claude[data-state='erro'] .vx-mouth {
+  opacity: 1;
+}
+
+.vx-badge {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.vx-badge circle {
+  fill: var(--surface);
+}
+
+.vx-badge path {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vx-badge-ok circle {
+  stroke: var(--ok);
+  stroke-width: 3;
+}
+
+.vx-badge-ok path {
+  stroke: var(--ok);
+}
+
+.vx-badge-err circle {
+  stroke: var(--bad);
+  stroke-width: 3;
+}
+
+.vx-badge-err path {
+  stroke: var(--bad);
+}
+
+.claude[data-state='concluido'] .vx-badge-ok,
+.claude[data-state='erro'] .vx-badge-err {
+  opacity: 1;
+  animation: badge-in 460ms var(--ease-expo) 1 both;
+}
+
+@keyframes badge-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-18deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* --- erro --------------------------------------------------------------- */
+
+.claude[data-state='erro'] .vx-float {
+  animation: err-shake 560ms var(--ease-in-out) 1 both;
+}
+
+@keyframes err-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  20% {
+    transform: translateX(-7px) rotate(-2deg);
+  }
+  45% {
+    transform: translateX(6px) rotate(2deg);
+  }
+  70% {
+    transform: translateX(-3px) rotate(-1deg);
+  }
+}
+
+.claude[data-state='erro'] .vx-shadow-far,
+.claude[data-state='erro'] .vx-shadow-near {
+  fill: color-mix(in oklab, var(--bad) 18%, transparent);
+}
+
+/* --- Cartões e gráficos ------------------------------------------------ */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Superfície plana: separação por linha, não por sombra. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px 18px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.card h2 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.chart {
+  position: relative;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.axis-text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.series-area {
+  fill: var(--accent);
+  fill-opacity: 0.1;
+}
+
+.series-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cross {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: nowrap;
+  box-shadow: var(--card-shadow);
+  transform: translate(-50%, -112%);
+  z-index: 3;
+}
+
+.bars {
+  display: grid;
+  gap: 11px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.bar-name {
+  font-size: 13px;
+}
+
+.bar-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.bar-value {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  grid-column: 1 / -1;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar-track > i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  transition: width var(--t-reveal) var(--ease-expo);
+}
+
+/* --- Feed ao vivo ------------------------------------------------------ */
+
+.feed {
+  display: grid;
+  gap: 0;
+  max-height: 272px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.feed-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line);
+  animation: feed-in 420ms var(--ease-out) 1 both;
+}
+
+@keyframes feed-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feed-time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.feed-what {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-tokens {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.feed-row[data-status='error'] .feed-tokens {
+  color: var(--bad);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+/* --- Alertas e cotas --------------------------------------------------- */
+
+.alerts {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.alert {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  font-size: 13px;
+  animation: feed-in 420ms var(--ease-out) 1 both;
+}
+
+.alert[data-state='atencao'] {
+  border-left-color: var(--warn);
+}
+
+.alert[data-state='estourado'] {
+  border-left-color: var(--bad);
+}
+
+.alert-icon {
+  font-weight: 700;
+}
+
+.alert[data-state='atencao'] .alert-icon {
+  color: var(--warn);
+}
+
+.alert[data-state='estourado'] .alert-icon {
+  color: var(--bad);
+}
+
+.quota-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.quota-form label {
+  font-size: 12px;
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+}
+
+table.list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.list th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0 8px 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+table.list th.num,
+table.list td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+table.list td {
+  padding: 7px 8px 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+}
+
+.pill[data-state='ok'] {
+  color: var(--ok);
+}
+
+.pill[data-state='atencao'] {
+  color: var(--warn);
+}
+
+.pill[data-state='estourado'] {
+  color: var(--bad);
+}
+
+footer.foot {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 24px;
+}
+
+footer.foot a {
+  color: var(--ink-2);
+}
+
+/* --- Movimento reduzido ------------------------------------------------
+   Cada estado continua legível pela pose, pelo selo e pelo texto do card:
+   nenhuma informação depende do movimento. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .claude[data-state='pensando'] .vx-think,
+  .claude[data-state='trabalhando'] .vx-sparks,
+  .claude[data-state='concluido'] .vx-badge-ok,
+  .claude[data-state='erro'] .vx-badge-err {
+    opacity: 1;
+  }
+
+  .beam [data-busy='true'] {
+    stroke-dasharray: none;
+  }
+}
+
+/* --- Seletor de projeto ------------------------------------------------ */
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.proj {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.proj-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.proj select {
+  font-weight: 600;
+}

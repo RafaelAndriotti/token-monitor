@@ -1,0 +1,88 @@
+/* Vitrine do elenco. Herda tudo de styles.css; aqui só o que é desta página.
+   `.actor` entra nos elementos para trazer as variáveis `--role-*`, sem o
+   cartão: por isso `.sr-fig` e `.sr-name` zeram fundo, borda e sombra. */
+
+.sr-fig.actor,
+.sr-name.actor {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.sr-back {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.sr-h2 {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 600;
+  margin: 28px 0 12px;
+}
+
+.sr-h2 strong {
+  color: var(--ink);
+}
+
+.sr-nota {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.sr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.sr-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(198px, 1fr));
+  gap: 12px;
+}
+
+.sr-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 10px 14px;
+  text-align: center;
+}
+
+.sr-card svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+.sr-name {
+  font-weight: 640;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.sr-name.actor {
+  color: var(--role);
+}
+
+.sr-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* O seletor de papel tem nove itens: numa tela estreita ele quebra em linhas. */
+.controls .seg {
+  flex-wrap: wrap;
+}
+
+/* Os cinco estados cabem numa linha só a partir do desktop. */
+@media (min-width: 900px) {
+  .sr-row {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
