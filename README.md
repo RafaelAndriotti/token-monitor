@@ -18,6 +18,23 @@ agente ──POST /v1/activity──▶ estado em memória ──┐
                                  └──────────────▶ /v1/stats/* ────────▶ gráficos
 ```
 
+## Conectar um projeto seu
+
+```bash
+npm run connect
+```
+
+Lista as pastas de transcript do Claude Code e diz quais já estão conectadas.
+Para ligar uma:
+
+```bash
+npm run connect -- --nome din-din
+```
+
+Todo o histórico entra junto, e **nada muda no seu projeto** — sem hook, sem
+chave, sem tocar no `.claude/settings.json` dele. Passo a passo e ajustes em
+[CONECTAR.md](CONECTAR.md).
+
 ## Rodando
 
 ```bash

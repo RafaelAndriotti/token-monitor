@@ -1,6 +1,6 @@
 {
   "name": "token-monitor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Painel de monitoramento de tokens gastos por agentes de IA",
   "type": "module",
@@ -13,7 +13,9 @@
     "report:send": "node scripts/report.js --send",
     "setup": "npm install",
     "demo": "node scripts/demo.js",
-    "showroom": "node scripts/showroom.js"
+    "showroom": "node scripts/showroom.js",
+    "connect": "node scripts/connect.js",
+    "import": "node scripts/import.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
