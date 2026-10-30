@@ -1,11 +1,13 @@
 import { readdirSync, statSync, existsSync, readFileSync, openSync, readSync, closeSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join, basename, win32 } from 'node:path';
 import { homedir } from 'node:os';
 
 import { db } from './db.js';
 import { normalizeEvent } from './normalize.js';
 import { ingest } from './ingest.js';
 import { getProject, listSources, projectForSource } from './projects.js';
+import { ensureAgents } from './roster.js';
+import { noDisco } from './caminhos.js';
 
 /**
  * Lê os transcripts do Claude Code e transforma cada mensagem do assistente
@@ -131,8 +133,10 @@ function eventoDaLinha(linha, { project, agent, operation, runLabel, sidechain }
     status: j.message?.stop_reason === 'refusal' ? 'error' : 'ok',
     metadata: {
       runLabel,
-      // Só o nome final da pasta: o caminho inteiro é informação demais.
-      cwd: j.cwd ? basename(j.cwd) : undefined,
+      // Só o nome final da pasta: o caminho inteiro é informação demais. O
+      // `win32` entende as duas barras, e o `cwd` vem do Windows mesmo
+      // quando o monitor roda num container Linux.
+      cwd: j.cwd ? win32.basename(j.cwd) : undefined,
       gitBranch: j.gitBranch || undefined,
       requestId: j.requestId,
       thinkingTokens: usage.output_tokens_details?.thinking_tokens,
@@ -170,6 +174,46 @@ export function cwdDaPasta(dir) {
     }
   }
   return null;
+}
+
+// --- Agentes declarados ---------------------------------------------------
+
+/**
+ * Os nomes dos subagentes definidos em `<projeto>/.claude/agents/`. O `name:`
+ * do frontmatter é o que o Claude Code usa como `agentType`; sem ele, vale o
+ * nome do arquivo.
+ */
+export function agentesDeclarados(sourcePath) {
+  if (!sourcePath) return [];
+  const pasta = join(noDisco(sourcePath), '.claude', 'agents');
+  if (!existsSync(pasta)) return [];
+
+  const nomes = new Set();
+  for (const arquivo of readdirSync(pasta, { recursive: true })) {
+    if (!String(arquivo).endsWith('.md')) continue;
+    let texto;
+    try {
+      texto = readFileSync(join(pasta, arquivo), 'utf8');
+    } catch {
+      continue;
+    }
+    const frontmatter = texto.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
+    const nome =
+      frontmatter.match(/^name:\s*["']?([^"'\r\n]+?)["']?\s*$/m)?.[1] ??
+      basename(String(arquivo), '.md');
+    if (nome) nomes.add(nome);
+  }
+  return [...nomes];
+}
+
+/**
+ * Põe no elenco os agentes que o projeto declara, mesmo os que nunca rodaram.
+ * Sem isto um agente só aparece no palco depois de gastar o primeiro token.
+ */
+export function registrarDeclarados(project) {
+  const p = getProject(project);
+  if (!p) return [];
+  return ensureAgents(project, agentesDeclarados(p.sourcePath));
 }
 
 // --- Importação -----------------------------------------------------------
@@ -253,7 +297,8 @@ async function importarArquivo(project, alvo) {
 }
 
 /** Importa uma pasta de transcript inteira para um projeto. */
-export async function importarPasta(project, dir) {
+export async function importarPasta(project, origem) {
+  const dir = noDisco(origem);
   if (!existsSync(dir)) return { inserted: 0, skipped: 0, arquivos: 0 };
 
   const p = getProject(project);
@@ -288,7 +333,9 @@ export async function importarProjeto(project) {
     inserted += r.inserted;
     skipped += r.skipped;
   }
-  return { project, inserted, skipped, sources: p.sources.length };
+  // Depois da importação: assim só sobram como novos os que nunca rodaram.
+  const declarados = registrarDeclarados(project);
+  return { project, inserted, skipped, sources: p.sources.length, declarados };
 }
 
 /**
@@ -297,7 +344,15 @@ export async function importarProjeto(project) {
  */
 export async function importarTudo() {
   const resultados = [];
-  for (const { project, dir } of listSources()) {
+  const fontes = listSources();
+  for (const project of new Set(fontes.map((f) => f.project))) {
+    try {
+      registrarDeclarados(project);
+    } catch (err) {
+      console.warn(`[transcript] agentes de ${project}: ${err.message}`);
+    }
+  }
+  for (const { project, dir } of fontes) {
     try {
       const r = await importarPasta(project, dir);
       resultados.push({ project, dir, ...r });
@@ -314,6 +369,10 @@ export async function importarTudo() {
 export function descobrir() {
   const raiz = claudeProjectsDir();
   if (!existsSync(raiz)) return { root: raiz, candidates: [] };
+
+  // A pasta pode estar gravada com o caminho do Windows e ser vista aqui com
+  // o do container: compara as duas pelo mesmo `noDisco`.
+  const donos = new Map(listSources().map((s) => [noDisco(s.dir), s.project]));
 
   const candidates = [];
   for (const nome of readdirSync(raiz)) {
@@ -341,7 +400,7 @@ export function descobrir() {
       // O nome da pasta é ambíguo, então o agrupamento usa o `cwd` lido.
       key: cwd ? cwd.toLowerCase().replace(/[\\/]+$/, '') : nome.toLowerCase(),
       sessions: sessoes,
-      project: projectForSource(dir),
+      project: donos.get(dir) ?? projectForSource(dir),
     });
   }
 

@@ -237,6 +237,9 @@ Filtros aceitos nas rotas de consulta: `from`, `to` (datas ISO), `agent`,
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | porta `587` | Servidor SMTP em partes. |
 | `REPORT_DAY` / `REPORT_HOUR` | `1` / `9` | Dia (0 = domingo) e hora UTC do envio. |
 | `MAIL_DRY_RUN` | — | `1` monta a mensagem sem abrir conexão SMTP. |
+| `IMPORT_INTERVAL_SEC` | `30` | De quanto em quanto tempo o servidor relê os transcripts. `0` desliga. |
+| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Onde ficam os transcripts do Claude Code. |
+| `PATH_MAP` | — | Traduz caminhos do Windows para o disco do container: `C:\dev=/host/dev;...`. Veja [CONECTAR.md](CONECTAR.md#rodar-no-docker). |
 
 ## Cotas de tokens
 

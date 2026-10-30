@@ -1,0 +1,27 @@
+# Sobe o monitor sempre ligado:  docker compose up -d --build
+#
+# O container lê os transcripts do Claude Code do Windows, somente leitura.
+# `PATH_MAP` traduz os caminhos do Windows gravados nos transcripts para onde
+# as pastas aparecem aqui dentro. Projetos fora de DEV_DIR precisam de outro
+# volume e de outro par no PATH_MAP.
+
+services:
+  monitor:
+    build: .
+    container_name: token-monitor
+    restart: unless-stopped
+    # Só nesta máquina: as rotas de leitura da API não pedem chave.
+    ports:
+      - "127.0.0.1:${PORT:-4000}:4000"
+    environment:
+      IMPORT_INTERVAL_SEC: ${IMPORT_INTERVAL_SEC:-30}
+      PATH_MAP: "${USERPROFILE}\\.claude\\projects=/claude/projects;${DEV_DIR:-C:\\dev}=/host/dev"
+      API_KEY: ${API_KEY:-}
+      RUN_LABELS: ${RUN_LABELS:-}
+    volumes:
+      - "${USERPROFILE}/.claude/projects:/claude/projects:ro"
+      - "${DEV_DIR:-C:/dev}:/host/dev:ro"
+      - tokens-data:/data
+
+volumes:
+  tokens-data:
