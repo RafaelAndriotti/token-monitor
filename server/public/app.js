@@ -805,6 +805,9 @@ function App() {
         <button class="ghost" onClick=${() => setMostrarAjustes((v) => !v)}>
           ${mostrarAjustes ? 'esconder ajustes' : 'papéis e cotas'}
         </button>
+        <a class="ghost" href=${project ? `/escritorio.html?project=${encodeURIComponent(project)}` : '/escritorio.html'}>
+          escritório 3D
+        </a>
       </div>
 
       <div class="kpis">
