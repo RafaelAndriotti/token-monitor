@@ -109,7 +109,9 @@ Cada agente do projeto vira um personagem no palco. No Din-Din, por exemplo:
 | `Explore` | Pesquisador | subagente embutido do Claude Code |
 
 Os subagentes vêm do `.claude/agents/` do seu projeto; o nome é o mesmo que
-você deu a eles. O papel é chutado pelo nome e decide a cor, o acessório de
+você deu a eles (o `name:` do frontmatter, ou o nome do arquivo). Entram no
+palco ao conectar, mesmo os que nunca rodaram — esses ficam parados, com zero
+tokens, até a primeira chamada. O papel é chutado pelo nome e decide a cor, o acessório de
 cabeça e o que o personagem segura.
 
 ---
@@ -164,8 +166,9 @@ estoura no primeiro dia sem significar nada sobre o seu consumo.
 
 ## Manter atualizado
 
-O servidor relê os transcripts **sozinho toda vez que sobe**. É isso que
-recupera o que aconteceu enquanto ele estava desligado — nada se perde.
+O servidor relê os transcripts **sozinho toda vez que sobe** e, depois, a cada
+30 s (`IMPORT_INTERVAL_SEC`). A leitura na subida é o que recupera o que
+aconteceu enquanto ele estava desligado — nada se perde.
 
 Para puxar agora, sem reiniciar:
 
@@ -177,6 +180,41 @@ Reler é sempre seguro. Cada mensagem do transcript carrega um identificador
 próprio, gravado sob índice único, então ela vira um evento só por mais vezes
 que o arquivo passe pelo importador. Rodar o `connect` de novo no mesmo projeto
 apenas reimporta o que faltava.
+
+---
+
+## Rodar no Docker
+
+Para deixar o monitor sempre ligado, sem `npm start` nem `npm run import`:
+
+```bash
+docker compose up -d --build
+```
+
+O container sobe junto com o Docker Desktop (`restart: unless-stopped`) e relê
+os transcripts a cada 30 s (`IMPORT_INTERVAL_SEC`). O painel fica em
+<http://localhost:4000>, aberto só para esta máquina.
+
+O banco fica no volume `token-monitor_tokens-data`, separado do
+`data/tokens.db` local. Conecte os projetos **dentro do container**:
+
+```bash
+docker compose exec monitor node scripts/connect.js --nome controle-financeiro
+```
+
+O container vê duas pastas do Windows, somente leitura:
+
+| no Windows | no container |
+| --- | --- |
+| `%USERPROFILE%\.claude\projects` | `/claude/projects` |
+| `C:\dev` (ou `DEV_DIR`) | `/host/dev` |
+
+O `.claude/agents` de um projeto só é lido se o projeto estiver dentro de
+`C:\dev`. Para outra pasta, acrescente um volume no `docker-compose.yml` e o
+par correspondente no `PATH_MAP`.
+
+Depois de mudar o código: `docker compose up -d --build`. Logs:
+`docker compose logs -f`.
 
 ---
 
@@ -218,7 +256,7 @@ painel — apagá-los é decisão separada, direto no SQLite em `data/tokens.db`
 | O projeto não está na lista do `connect` | Nenhuma sessão do Claude Code naquela pasta ainda. Use-o uma vez e rode de novo. |
 | Conectou, mas o painel está vazio | Confira o seletor de projeto no topo — pode estar mostrando outro. O endereço diz qual: `?project=...` |
 | `0 eventos novos` numa pasta com sessões | Já estava tudo importado. `npm run import` confirma. |
-| Falta um subagente no palco | Subagentes internos do Claude Code vêm sem nome e são descartados de propósito. Os seus, do `.claude/agents/`, sempre têm. |
+| Falta um subagente no palco | Os do `.claude/agents/` entram ao conectar e a cada `npm run import`. Subagentes internos do Claude Code vêm sem nome e são descartados de propósito; os embutidos (`Explore`, `Plan`) só aparecem depois de rodar. |
 | `SQLITE_BUSY` | O servidor e o script escrevendo juntos. Já há espera configurada; se insistir, pare o servidor e rode de novo. |
 
 Visão geral da API em [README.md](README.md).

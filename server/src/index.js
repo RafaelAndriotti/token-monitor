@@ -60,6 +60,8 @@ import {
 
 const PORT = Number(process.env.PORT ?? 4000);
 const API_KEY = process.env.API_KEY ?? null;
+/** De quanto em quanto tempo relê os transcripts. `0` desliga. */
+const IMPORT_INTERVAL_MS = Number(process.env.IMPORT_INTERVAL_SEC ?? 30) * 1000;
 const STARTED_AT = Date.now();
 const VERSION = '0.3.0';
 
@@ -531,6 +533,26 @@ app.listen(PORT, () => {
       if (total) console.log(`  transcripts: ${total} eventos novos importados`);
     })
     .catch((err) => console.warn(`[transcript] varredura inicial falhou: ${err.message}`));
+
+  // Releitura contínua: com o servidor sempre no ar (serviço, container), é
+  // isto que traz o uso novo sem `npm run import`. Polling, não `fs.watch`:
+  // pasta montada do Windows num container não gera evento de inotify.
+  if (IMPORT_INTERVAL_MS > 0) {
+    let lendo = false;
+    setInterval(async () => {
+      if (lendo) return;
+      lendo = true;
+      try {
+        const rs = await importarTudo();
+        const total = rs.reduce((acc, r) => acc + r.inserted, 0);
+        if (total) console.log(`  transcripts: ${total} eventos novos importados`);
+      } catch (err) {
+        console.warn(`[transcript] releitura falhou: ${err.message}`);
+      } finally {
+        lendo = false;
+      }
+    }, IMPORT_INTERVAL_MS).unref();
+  }
 
   console.log(`token-monitor em http://localhost:${PORT}`);
   console.log(`  painel   GET  /`);

@@ -16,7 +16,10 @@
  * dois no mesmo arquivo.
  */
 
-import { basename } from 'node:path';
+// `win32` entende as duas barras: o `cwd` vem do Windows mesmo dentro do container.
+import { win32 } from 'node:path';
+
+const { basename } = win32;
 
 import { descobrir, importarProjeto } from '../server/src/transcripts.js';
 import {
@@ -127,6 +130,9 @@ for (const grupo of porProjeto.values()) {
   console.log(
     `  ${fmt(r.inserted)} eventos novos, ${fmt(r.skipped)} já conhecidos, em ${segundos}s`,
   );
+  if (r.declarados.length) {
+    console.log(`  do .claude/agents, ainda sem uso: ${r.declarados.join(', ')}`);
+  }
   console.log(`  painel: http://localhost:4000/?project=${encodeURIComponent(grupo.id)}`);
 }
 
