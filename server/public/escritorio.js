@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /**
  * Escritório 3D: o mesmo estado do palco 2D, desenhado como uma sala onde cada
@@ -348,7 +349,7 @@ function montarMesa(cor, largura = 2.4) {
   g.add(caixa(0.7, 0.03, 0.22, GRAFITE, { y: 0.845, z: -0.3 }));
   g.add(caixa(0.12, 0.03, 0.18, GRAFITE, { x: 0.5, y: 0.845, z: -0.3 }));
   g.add(cilindro(0.07, 0.06, 0.15, '#fafaf9', { x: largura / 2 - 0.45, y: 0.905, z: 0.3 }));
-  g.add(caixa(0.4, 0.01, 0.3, material('#f5f5f4'), { x: 0.25, y: 0.835, z: 0.15 }));
+  g.add(caixa(0.4, 0.01, 0.3, material('#f5f5f4'), { x: -0.15, y: 0.835, z: 0.3 }));
 
   // Luminária: a cúpula é sem luz, só acesa.
   const lum = new THREE.Group();
@@ -376,85 +377,157 @@ function montarMesa(cor, largura = 2.4) {
 
 // --- Personagens ----------------------------------------------------------
 
-// Altura do topo do corpo, de onde saem chapéu, balão e etiqueta.
-const TOPO = 1.3;
-// Balão, selo e painel ficam acima da etiqueta, para nenhum cobrir o outro.
-const ALTURA_BOLHAS = [2.45, 2.65, 2.95];
-const ALTURA_SELO = 2.7;
+// Medidas do corpo. Chapéu, rosto e membros saem daqui.
+const CORPO = { largura: 1.05, altura: 0.9, fundo: 0.85, centro: 0.95 };
+const TOPO = CORPO.centro + CORPO.altura / 2;
+const FRENTE = CORPO.fundo / 2;
+const MEIA = CORPO.largura / 2;
+// Altura dos olhos: um pouco acima do meio, como no painel 2D.
+const OLHOS_Y = 1.0;
+// Balão e painel ficam acima da etiqueta, para nenhum cobrir o outro.
+const ALTURA_BOLHAS = [2.6, 2.82, 3.12];
+
+const tom = (cor, fator) => new THREE.Color(cor).multiplyScalar(fator).getStyle();
+const clarear = (cor, t) => new THREE.Color(cor).lerp(new THREE.Color('#ffffff'), t).getStyle();
+
+/**
+ * Plástico macio de brinquedo: verniz por cima da cor dá o brilho de quina
+ * que separa o personagem do fundo.
+ */
+function plastico(cor, extra = {}) {
+  return new THREE.MeshPhysicalMaterial({
+    color: cor,
+    roughness: 0.42,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.3,
+    ...extra,
+  });
+}
+
+/**
+ * Pinta a geometria por altura, do tom escuro embaixo ao claro em cima — é o
+ * mesmo degradê do corpo no SVG, agora no vértice.
+ */
+function degrade(geometria, corBaixo, corCima) {
+  const pos = geometria.attributes.position;
+  geometria.computeBoundingBox();
+  const { min, max } = geometria.boundingBox;
+  const a = new THREE.Color(corBaixo);
+  const b = new THREE.Color(corCima);
+  const c = new THREE.Color();
+  const cores = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const t = (pos.getY(i) - min.y) / (max.y - min.y || 1);
+    c.copy(a).lerp(b, Math.pow(t, 0.8));
+    cores.set([c.r, c.g, c.b], i * 3);
+  }
+  geometria.setAttribute('color', new THREE.BufferAttribute(cores, 3));
+  return geometria;
+}
 
 /** Acessório de cabeça por papel: é o que distingue dois personagens além da cor. */
 function montarChapeu(chapeu, cor) {
   const g = new THREE.Group();
-  const escuro = new THREE.Color(cor).multiplyScalar(0.55).getStyle();
+  const escuro = tom(cor, 0.5);
+  const tecido = (c) => plastico(c, { roughness: 0.7, clearcoat: 0.15 });
+  const metal = plastico(GRAFITE, { roughness: 0.35, metalness: 0.4 });
+
+  // Faixa que dá a volta na cabeça: frente, laterais e fundo, rente ao corpo.
+  const faixa = (mat, altura, y) => {
+    const r = 0.03;
+    g.add(malha(new RoundedBoxGeometry(CORPO.largura + 0.04, altura, 0.05, 2, r), mat, { y, z: FRENTE }));
+    g.add(malha(new RoundedBoxGeometry(CORPO.largura + 0.04, altura, 0.05, 2, r), mat, { y, z: -FRENTE }));
+    for (const lado of [-1, 1]) {
+      g.add(malha(new RoundedBoxGeometry(0.05, altura, CORPO.fundo + 0.04, 2, r), mat, { x: lado * MEIA, y }));
+    }
+  };
+
   switch (chapeu) {
     case 'headset': {
-      const arco = malha(new THREE.TorusGeometry(0.52, 0.045, 8, 28, Math.PI), material(GRAFITE));
-      arco.position.y = 0.95;
+      const arco = malha(new THREE.TorusGeometry(MEIA + 0.06, 0.045, 10, 32, Math.PI), metal);
+      arco.position.y = OLHOS_Y + 0.02;
       g.add(arco);
       for (const lado of [-1, 1]) {
-        const concha = cilindro(0.14, 0.14, 0.1, GRAFITE, { x: lado * 0.52, y: 0.95 });
+        const concha = malha(new THREE.CylinderGeometry(0.17, 0.17, 0.12, 24), metal, { x: lado * (MEIA + 0.06), y: OLHOS_Y });
         concha.rotation.z = Math.PI / 2;
-        g.add(concha);
+        const almofada = malha(new THREE.TorusGeometry(0.12, 0.05, 8, 20), plastico(cor, { roughness: 0.8 }), { x: lado * (MEIA + 0.13), y: OLHOS_Y });
+        almofada.rotation.y = Math.PI / 2;
+        g.add(concha, almofada);
       }
-      const haste = caixa(0.03, 0.03, 0.42, GRAFITE, { x: -0.48, y: 0.78, z: 0.22 });
-      haste.rotation.x = 0.35;
+      const haste = malha(new THREE.CapsuleGeometry(0.022, 0.42, 4, 8), metal, { x: -MEIA - 0.02, y: OLHOS_Y - 0.2, z: 0.24 });
+      haste.rotation.x = Math.PI / 2 - 0.5;
       g.add(haste);
-      g.add(malha(new THREE.SphereGeometry(0.05, 10, 8), material('#111'), { x: -0.45, y: 0.72, z: 0.44 }));
+      g.add(malha(new THREE.SphereGeometry(0.06, 14, 10), plastico('#111'), { x: -MEIA + 0.02, y: OLHOS_Y - 0.32, z: FRENTE + 0.04 }));
       break;
     }
     case 'beret': {
-      const boina = cilindro(0.42, 0.46, 0.12, escuro, { x: 0.06, y: TOPO + 0.05 });
-      boina.rotation.z = 0.22;
-      g.add(boina, cilindro(0.03, 0.03, 0.08, escuro, { x: 0.02, y: TOPO + 0.15 }));
+      const boina = malha(new THREE.SphereGeometry(0.5, 28, 14), tecido(escuro), { x: 0.08, y: TOPO + 0.02 });
+      boina.scale.set(1, 0.28, 1);
+      boina.rotation.z = 0.18;
+      g.add(boina, malha(new THREE.CapsuleGeometry(0.03, 0.06, 4, 8), tecido(escuro), { x: 0.05, y: TOPO + 0.17 }));
       break;
     }
     case 'cap': {
-      const copa = malha(new THREE.SphereGeometry(0.45, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), material(escuro), { y: TOPO - 0.02 });
+      const copa = malha(new THREE.SphereGeometry(0.5, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), tecido(escuro), { y: TOPO - 0.04 });
       copa.scale.y = 0.55;
-      g.add(copa, caixa(0.52, 0.04, 0.38, escuro, { y: TOPO, z: 0.5 }));
+      const aba = malha(new THREE.CylinderGeometry(0.34, 0.34, 0.035, 28, 1, false, -Math.PI / 2, Math.PI), tecido(escuro), { y: TOPO - 0.02, z: 0.28 });
+      aba.scale.z = 0.85;
+      g.add(copa, aba, malha(new THREE.SphereGeometry(0.05, 12, 8), tecido(cor), { y: TOPO + 0.24 }));
       break;
     }
     case 'helmet': {
-      const casco = malha(new THREE.SphereGeometry(0.55, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), material('#facc15', { roughness: 0.5 }), { y: TOPO - 0.08 });
-      casco.scale.y = 0.6;
-      g.add(casco, caixa(0.1, 0.12, 0.9, '#eab308', { y: TOPO + 0.2 }));
+      const amarelo = plastico('#facc15', { roughness: 0.3, clearcoat: 1 });
+      const casco = malha(new THREE.SphereGeometry(0.62, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), amarelo, { y: TOPO - 0.12 });
+      casco.scale.y = 0.62;
+      const aba = malha(new THREE.TorusGeometry(0.6, 0.04, 8, 36), amarelo, { y: TOPO - 0.12 });
+      aba.rotation.x = Math.PI / 2;
+      const crista = malha(new RoundedBoxGeometry(0.12, 0.12, 1.0, 2, 0.05), plastico('#eab308', { clearcoat: 1 }), { y: TOPO + 0.2 });
+      g.add(casco, aba, crista);
       break;
     }
     case 'headlamp': {
-      g.add(caixa(0.97, 0.1, 0.03, GRAFITE, { y: TOPO - 0.12, z: 0.41 }));
-      g.add(caixa(0.03, 0.1, 0.82, GRAFITE, { x: -0.49, y: TOPO - 0.12 }));
-      g.add(caixa(0.03, 0.1, 0.82, GRAFITE, { x: 0.49, y: TOPO - 0.12 }));
-      const lampada = cilindro(0.1, 0.1, 0.1, new THREE.MeshBasicMaterial({ color: '#fef08a' }), { y: TOPO - 0.12, z: 0.46 });
+      faixa(plastico(GRAFITE, { roughness: 0.8 }), 0.1, TOPO - 0.13);
+      const lampada = malha(new THREE.CylinderGeometry(0.12, 0.1, 0.12, 24), metal, { y: TOPO - 0.13, z: FRENTE + 0.08 });
       lampada.rotation.x = Math.PI / 2;
-      g.add(lampada);
+      const luz = malha(new THREE.CircleGeometry(0.09, 24), new THREE.MeshBasicMaterial({ color: '#fef9c3', toneMapped: false }), { y: TOPO - 0.13, z: FRENTE + 0.145, sombra: false });
+      g.add(lampada, luz);
       break;
     }
     case 'visor': {
-      g.add(caixa(0.88, 0.2, 0.06, new THREE.MeshStandardMaterial({ color: '#67e8f9', emissive: '#22d3ee', emissiveIntensity: 0.5, transparent: true, opacity: 0.65 }), { y: 0.97, z: 0.43, sombra: false }));
+      // Viseira translúcida por cima do rosto, de orelha a orelha.
+      const vidro = new THREE.MeshPhysicalMaterial({ color: '#67e8f9', emissive: '#22d3ee', emissiveIntensity: 0.35, transparent: true, opacity: 0.45, roughness: 0.05, clearcoat: 1 });
+      g.add(malha(new RoundedBoxGeometry(CORPO.largura + 0.06, 0.26, 0.08, 3, 0.04), vidro, { y: OLHOS_Y + 0.02, z: FRENTE + 0.06, sombra: false }));
+      for (const lado of [-1, 1]) {
+        g.add(malha(new THREE.SphereGeometry(0.07, 14, 10), metal, { x: lado * (MEIA + 0.04), y: OLHOS_Y + 0.02, z: FRENTE - 0.05 }));
+      }
       break;
     }
     case 'band': {
-      const faixa = material('#f5f5f4');
-      g.add(caixa(0.97, 0.09, 0.03, faixa, { y: TOPO - 0.12, z: 0.41 }));
-      g.add(caixa(0.03, 0.09, 0.82, faixa, { x: -0.49, y: TOPO - 0.12 }));
-      g.add(caixa(0.03, 0.09, 0.82, faixa, { x: 0.49, y: TOPO - 0.12 }));
-      const ponta = caixa(0.05, 0.08, 0.3, faixa, { x: 0.12, y: TOPO - 0.2, z: -0.52 });
-      ponta.rotation.x = 0.6;
-      g.add(ponta);
+      faixa(tecido('#f5f5f4'), 0.11, TOPO - 0.14);
+      g.add(malha(new RoundedBoxGeometry(0.3, 0.06, 0.06, 2, 0.02), tecido(cor), { y: TOPO - 0.14, z: FRENTE + 0.03 }));
+      for (const [dx, rz] of [[0.1, 0.5], [0.22, 0.9]]) {
+        const ponta = malha(new RoundedBoxGeometry(0.07, 0.3, 0.04, 2, 0.02), tecido('#f5f5f4'), { x: dx, y: TOPO - 0.3, z: -FRENTE - 0.03 });
+        ponta.rotation.z = rz;
+        g.add(ponta);
+      }
       break;
     }
     case 'glasses': {
-      const aro = material('#18181b');
+      const aro = plastico('#18181b', { roughness: 0.3 });
+      const lente = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, roughness: 0, clearcoat: 1 });
       for (const lado of [-1, 1]) {
-        g.add(malha(new THREE.TorusGeometry(0.12, 0.025, 8, 20), aro, { x: lado * 0.2, y: 0.96, z: 0.43 }));
+        g.add(malha(new THREE.TorusGeometry(0.15, 0.03, 10, 28), aro, { x: lado * 0.21, y: OLHOS_Y, z: FRENTE + 0.08, sombra: false }));
+        g.add(malha(new THREE.CircleGeometry(0.14, 24), lente, { x: lado * 0.21, y: OLHOS_Y, z: FRENTE + 0.08, sombra: false }));
       }
-      g.add(caixa(0.16, 0.025, 0.02, aro, { y: 0.98, z: 0.43 }));
+      g.add(malha(new THREE.CapsuleGeometry(0.02, 0.1, 4, 8), aro, { y: OLHOS_Y + 0.04, z: FRENTE + 0.08, sombra: false }).rotateZ(Math.PI / 2));
       break;
     }
     case 'explorer': {
-      g.add(cilindro(0.66, 0.66, 0.04, '#a16207', { y: TOPO + 0.02 }, 28));
-      g.add(cilindro(0.36, 0.4, 0.26, '#ca8a04', { y: TOPO + 0.16 }, 24));
-      g.add(cilindro(0.405, 0.405, 0.06, escuro, { y: TOPO + 0.07 }, 24));
+      const palha = plastico('#ca8a04', { roughness: 0.8, clearcoat: 0.1 });
+      const aba = malha(new THREE.CylinderGeometry(0.74, 0.78, 0.05, 40), plastico('#a16207', { roughness: 0.8, clearcoat: 0.1 }), { y: TOPO + 0.03 });
+      const copa = malha(new THREE.CapsuleGeometry(0.38, 0.12, 6, 24), palha, { y: TOPO + 0.2 });
+      copa.scale.y = 0.75;
+      g.add(aba, copa, malha(new THREE.CylinderGeometry(0.405, 0.405, 0.07, 32), tecido(escuro), { y: TOPO + 0.1 }));
       break;
     }
     default:
@@ -463,33 +536,233 @@ function montarChapeu(chapeu, cor) {
   return g;
 }
 
-/** Desenho de selo (✓ ou ✕) usado em cima da cabeça. */
-function texturaSelo(fundo, desenhar) {
-  return texturaDeCanvas(128, 128, (ctx) => {
-    ctx.fillStyle = fundo;
-    ctx.beginPath();
-    ctx.arc(64, 64, 58, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 14;
+// --- Rostos ---------------------------------------------------------------
+
+/**
+ * O rosto é uma tela escura no corpo, e os olhos são desenhados nela, acesos.
+ * Cada estado tem a sua expressão; trocar de estado troca só a textura.
+ */
+const EXPRESSAO_DO_ESTADO = {
+  parado: 'normal',
+  pensando: 'pensando',
+  trabalhando: 'focado',
+  concluido: 'feliz',
+  erro: 'erro',
+};
+
+const rostos = new Map();
+
+function texturaRosto(cor, expressao) {
+  const chave = `${cor}|${expressao}`;
+  if (rostos.has(chave)) return rostos.get(chave);
+
+  const brilho = expressao === 'erro' ? '#fca5a5' : clarear(cor, 0.55);
+  const t = texturaDeCanvas(256, 152, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = brilho;
+    ctx.strokeStyle = brilho;
+    ctx.shadowColor = brilho;
+    ctx.shadowBlur = 18;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.beginPath();
-    desenhar(ctx);
-    ctx.stroke();
+    ctx.lineWidth = 13;
+    const cx = w / 2;
+    const cy = h / 2;
+    const olho = (x, y, largura, altura) => {
+      ctx.beginPath();
+      ctx.roundRect(x - largura / 2, y - altura / 2, largura, altura, Math.min(largura, altura) / 2);
+      ctx.fill();
+    };
+    for (const lado of [-1, 1]) {
+      const x = cx + lado * 50;
+      switch (expressao) {
+        case 'piscando':
+          olho(x, cy + 6, 40, 9);
+          break;
+        case 'pensando':
+          // Olhando para cima e para o lado, como quem procura a resposta.
+          olho(x + 12, cy - 16, 30, 42);
+          break;
+        case 'focado':
+          // Olhos baixos, no teclado.
+          olho(x, cy + 14, 42, 20);
+          break;
+        case 'feliz':
+          ctx.beginPath();
+          ctx.arc(x, cy + 14, 20, Math.PI * 1.1, Math.PI * 1.9);
+          ctx.stroke();
+          break;
+        case 'erro':
+          ctx.beginPath();
+          ctx.moveTo(x - 15, cy - 15);
+          ctx.lineTo(x + 15, cy + 15);
+          ctx.moveTo(x + 15, cy - 15);
+          ctx.lineTo(x - 15, cy + 15);
+          ctx.stroke();
+          break;
+        default:
+          olho(x, cy, 34, 54);
+      }
+    }
+    // Bochechas: dão o ar de brinquedo sem precisar de boca.
+    if (expressao === 'feliz' || expressao === 'normal') {
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#fb7185';
+      for (const lado of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(cx + lado * 96, cy + 38, 16, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   });
+  rostos.set(chave, t);
+  return t;
 }
 
-const SELO_OK = texturaSelo('#16a34a', (ctx) => {
-  ctx.moveTo(36, 66);
-  ctx.lineTo(56, 86);
-  ctx.lineTo(92, 44);
-});
-const SELO_ERRO = texturaSelo('#dc2626', (ctx) => {
-  ctx.moveTo(42, 42);
-  ctx.lineTo(86, 86);
-  ctx.moveTo(86, 42);
-  ctx.lineTo(42, 86);
+// --- Objetos de mesa ------------------------------------------------------
+
+/**
+ * O que cada papel segura no painel 2D fica na mesa aqui: as mãos estão
+ * ocupadas com o teclado.
+ */
+function montarObjeto(objeto, cor) {
+  const g = new THREE.Group();
+  const escuro = plastico('#16181d', { roughness: 0.5 });
+  const aceso = (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false });
+
+  switch (objeto) {
+    case 'card': {
+      // Tablet num suporte, com a lista de tarefas acesa.
+      const tablet = new THREE.Group();
+      tablet.add(malha(new RoundedBoxGeometry(0.34, 0.26, 0.025, 2, 0.02), escuro));
+      for (let i = 0; i < 3; i++) {
+        tablet.add(malha(new THREE.PlaneGeometry(0.2 - i * 0.04, 0.03), aceso(i ? '#e7e5e4' : cor), { x: -0.04 + i * 0.02, y: 0.07 - i * 0.06, z: 0.014, sombra: false }));
+      }
+      tablet.position.y = 0.14;
+      tablet.rotation.x = -0.35;
+      g.add(tablet);
+      break;
+    }
+    case 'picture': {
+      // Cavalete com um quadro de formas coloridas.
+      const quadroArte = new THREE.Group();
+      quadroArte.add(malha(new RoundedBoxGeometry(0.32, 0.26, 0.03, 2, 0.01), plastico('#f5f5f4', { roughness: 0.8 })));
+      const formas = [['#60a5fa', -0.07, 0.03, 0.06], [cor, 0.06, -0.02, 0.08], ['#facc15', 0.08, 0.07, 0.04]];
+      for (const [c, x, y, r] of formas) {
+        quadroArte.add(malha(new THREE.CircleGeometry(r, 20), plastico(c), { x, y, z: 0.017, sombra: false }));
+      }
+      quadroArte.position.y = 0.2;
+      quadroArte.rotation.x = -0.2;
+      g.add(quadroArte);
+      for (const lado of [-1, 1]) {
+        const perna = malha(new THREE.CapsuleGeometry(0.012, 0.3, 4, 6), plastico(MADEIRA_ESCURA), { x: lado * 0.11, y: 0.15, z: -0.03 });
+        perna.rotation.z = lado * -0.15;
+        g.add(perna);
+      }
+      break;
+    }
+    case 'screen': {
+      // Segundo monitor, pequeno, com código.
+      const tela = new THREE.Group();
+      tela.add(malha(new RoundedBoxGeometry(0.42, 0.28, 0.03, 2, 0.015), escuro));
+      const codigo = CODIGO.clone();
+      codigo.needsUpdate = true;
+      codigo.repeat.set(1, 0.5);
+      tela.add(malha(new THREE.PlaneGeometry(0.38, 0.24), new THREE.MeshBasicMaterial({ map: codigo, color: cor, toneMapped: false }), { z: 0.017, sombra: false }));
+      tela.position.y = 0.26;
+      tela.rotation.x = -0.15;
+      g.add(tela, malha(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8), escuro, { y: 0.07 }), malha(new THREE.CylinderGeometry(0.08, 0.08, 0.015, 16), escuro, { y: 0.01 }));
+      break;
+    }
+    case 'rack': {
+      // Mini servidor com luzes piscando.
+      g.add(malha(new RoundedBoxGeometry(0.26, 0.36, 0.24, 2, 0.03), escuro, { y: 0.18 }));
+      for (let i = 0; i < 3; i++) {
+        g.add(malha(new THREE.PlaneGeometry(0.16, 0.025), aceso(i === 1 ? '#facc15' : cor), { x: -0.02, y: 0.08 + i * 0.1, z: 0.121, sombra: false }));
+        g.add(malha(new THREE.CircleGeometry(0.014, 10), aceso('#ef4444'), { x: 0.09, y: 0.08 + i * 0.1, z: 0.121, sombra: false }));
+      }
+      break;
+    }
+    case 'pipeline': {
+      // Esteira com três pacotes passando.
+      g.add(malha(new RoundedBoxGeometry(0.46, 0.04, 0.14, 2, 0.015), escuro, { y: 0.02 }));
+      [cor, '#e7e5e4', '#facc15'].forEach((c, i) => {
+        g.add(malha(new RoundedBoxGeometry(0.1, 0.1, 0.1, 2, 0.02), plastico(c), { x: -0.15 + i * 0.15, y: 0.09 }));
+      });
+      break;
+    }
+    case 'chart': {
+      // Gráfico de barras de mesa.
+      g.add(malha(new RoundedBoxGeometry(0.4, 0.03, 0.16, 2, 0.01), escuro, { y: 0.015 }));
+      [0.12, 0.22, 0.16, 0.3].forEach((h, i) => {
+        g.add(malha(new RoundedBoxGeometry(0.07, h, 0.07, 2, 0.015), plastico(i === 3 ? cor : clarear(cor, 0.5)), { x: -0.13 + i * 0.087, y: 0.03 + h / 2 }));
+      });
+      break;
+    }
+    case 'checklist': {
+      // Prancheta com três itens marcados.
+      const prancheta = new THREE.Group();
+      prancheta.add(malha(new RoundedBoxGeometry(0.26, 0.34, 0.02, 2, 0.015), plastico(MADEIRA, { roughness: 0.7 })));
+      prancheta.add(malha(new THREE.PlaneGeometry(0.22, 0.28), plastico('#fafaf9', { roughness: 0.9 }), { y: -0.01, z: 0.012, sombra: false }));
+      prancheta.add(malha(new RoundedBoxGeometry(0.1, 0.04, 0.03, 2, 0.01), metal(), { y: 0.16, z: 0.01 }));
+      for (let i = 0; i < 3; i++) {
+        prancheta.add(malha(new THREE.PlaneGeometry(0.04, 0.04), plastico(cor), { x: -0.07, y: 0.07 - i * 0.08, z: 0.014, sombra: false }));
+        prancheta.add(malha(new THREE.PlaneGeometry(0.1, 0.015), plastico('#a8a29e'), { x: 0.03, y: 0.07 - i * 0.08, z: 0.014, sombra: false }));
+      }
+      prancheta.position.y = 0.05;
+      prancheta.rotation.x = -Math.PI / 2 + 0.25;
+      g.add(prancheta);
+      break;
+    }
+    case 'lens': {
+      // Lupa deitada na mesa.
+      const lupa = new THREE.Group();
+      lupa.add(malha(new THREE.TorusGeometry(0.1, 0.022, 10, 28), metal()));
+      lupa.add(malha(new THREE.CircleGeometry(0.095, 24), new THREE.MeshPhysicalMaterial({ color: '#bae6fd', transparent: true, opacity: 0.35, roughness: 0, clearcoat: 1 })));
+      const cabo = malha(new THREE.CapsuleGeometry(0.025, 0.16, 4, 8), plastico(cor), { x: 0.17, y: -0.17 });
+      cabo.rotation.z = Math.PI / 4;
+      lupa.add(cabo);
+      lupa.rotation.x = -Math.PI / 2;
+      lupa.position.y = 0.03;
+      g.add(lupa);
+      break;
+    }
+    case 'book': {
+      // Livro aberto, as duas metades em V.
+      for (const lado of [-1, 1]) {
+        const metade = new THREE.Group();
+        metade.add(malha(new RoundedBoxGeometry(0.18, 0.025, 0.24, 2, 0.008), plastico(cor), {}));
+        metade.add(malha(new THREE.BoxGeometry(0.16, 0.012, 0.22), plastico('#fafaf9', { roughness: 0.9 }), { y: 0.016 }));
+        metade.children.forEach((m) => (m.position.x = lado * 0.09));
+        metade.rotation.z = lado * -0.18;
+        metade.position.y = 0.04;
+        g.add(metade);
+      }
+      break;
+    }
+    default: {
+      // Faísca: o genérico só tem a ideia, flutuando.
+      const faisca = malha(new THREE.OctahedronGeometry(0.08), aceso(clarear(cor, 0.3)), { y: 0.2, sombra: false });
+      faisca.userData.gira = true;
+      g.add(faisca);
+    }
+  }
+  return g;
+
+  function metal() {
+    return plastico('#9ca3af', { roughness: 0.3, metalness: 0.6 });
+  }
+}
+
+/** Sombra de contato: uma mancha suave embaixo de quem anda. */
+const SOMBRA_CONTATO = texturaDeCanvas(128, 128, (ctx) => {
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
 });
 
 /** Linhas de código que sobem no painel holográfico de quem trabalha. */
@@ -540,46 +813,83 @@ class Personagem {
 
     this.raiz = new THREE.Group();
     this.raiz.position.copy(this.assento);
-    this.raiz.scale.setScalar(1.12);
+    this.raiz.scale.setScalar(1.25);
     this.corpo = new THREE.Group();
     this.raiz.add(this.corpo);
 
     const cor = this.cor;
-    this.matCorpo = material(cor, { roughness: 0.55, emissive: '#000000' });
-    const tronco = malha(new RoundedBoxGeometry(0.95, 0.8, 0.8, 3, 0.16), this.matCorpo, { y: 0.9 });
-    this.corpo.add(tronco);
 
-    const membro = material(new THREE.Color(cor).multiplyScalar(0.7).getStyle(), { roughness: 0.6 });
-    this.pernas = [[-0.28, 0.24], [0.28, 0.24], [-0.28, -0.24], [0.28, -0.24]].map(([x, z]) => {
+    // Corpo: bloco bem arredondado, com degradê do tom escuro embaixo ao claro
+    // em cima, e verniz por cima.
+    this.matCorpo = plastico('#ffffff', { vertexColors: true, emissive: '#000000' });
+    const geoCorpo = degrade(
+      new RoundedBoxGeometry(CORPO.largura, CORPO.altura, CORPO.fundo, 6, 0.24),
+      tom(cor, 0.68),
+      clarear(cor, 0.04),
+    );
+    this.corpo.add(malha(geoCorpo, this.matCorpo, { y: CORPO.centro }));
+
+    // Rosto: tela escura e brilhante embutida na frente, com os olhos acesos.
+    const tela = malha(
+      new RoundedBoxGeometry(0.8, 0.5, 0.06, 4, 0.1),
+      plastico('#12151c', { roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }),
+      { y: OLHOS_Y, z: FRENTE - 0.01, sombra: false },
+    );
+    this.matRosto = new THREE.MeshBasicMaterial({ map: texturaRosto(cor, 'normal'), transparent: true, toneMapped: false, depthWrite: false });
+    const rosto = malha(new THREE.PlaneGeometry(0.74, 0.44), this.matRosto, { y: OLHOS_Y, z: FRENTE + 0.025, sombra: false });
+    this.corpo.add(tela, rosto);
+    this.expressao = 'normal';
+
+    // Pernas e braços em cápsula, com pé e mão redondos no tom do corpo.
+    const membro = plastico(tom(cor, 0.72), { roughness: 0.5 });
+    const ponta = plastico(clarear(cor, 0.1), { roughness: 0.45 });
+    this.pernas = [[-0.3, 0.22], [0.3, 0.22], [-0.3, -0.22], [0.3, -0.22]].map(([x, z]) => {
       const pivo = new THREE.Group();
       pivo.position.set(x, 0.52, z);
-      pivo.add(cilindro(0.075, 0.07, 0.5, membro, { y: -0.25 }, 10));
+      pivo.add(malha(new THREE.CapsuleGeometry(0.085, 0.3, 6, 12), membro, { y: -0.22 }));
+      const pe = malha(new THREE.SphereGeometry(0.11, 16, 10), ponta, { y: -0.43, z: 0.03 });
+      pe.scale.set(1, 0.6, 1.25);
+      pivo.add(pe);
       this.corpo.add(pivo);
       return pivo;
     });
 
     this.bracos = [-1, 1].map((lado) => {
       const pivo = new THREE.Group();
-      pivo.position.set(lado * 0.52, 0.95, 0.05);
-      pivo.add(malha(new RoundedBoxGeometry(0.14, 0.38, 0.16, 2, 0.06), membro, { y: -0.17 }));
+      pivo.position.set(lado * (MEIA + 0.04), 0.98, 0.06);
+      const braco = malha(new THREE.CapsuleGeometry(0.075, 0.24, 6, 12), membro, { y: -0.16 });
+      pivo.add(braco, malha(new THREE.SphereGeometry(0.1, 16, 12), ponta, { y: -0.34 }));
       this.corpo.add(pivo);
       return pivo;
     });
 
-    const branco = new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: 0.25 });
-    this.olhos = [-0.2, 0.2].map((x) => {
-      const olho = malha(new RoundedBoxGeometry(0.15, 0.22, 0.05, 2, 0.04), branco, { x, y: 0.96, z: 0.41, sombra: false });
-      this.corpo.add(olho);
-      return olho;
-    });
-
+    // Antena com a bolinha acesa: brilha mais quando ele está ativo.
     this.antena = new THREE.Group();
-    this.antena.position.set(0.22, TOPO, -0.2);
-    this.antena.add(cilindro(0.02, 0.02, 0.3, membro, { y: 0.15 }, 8));
-    this.antena.add(malha(new THREE.SphereGeometry(0.07, 12, 10), material(new THREE.Color(cor).lerp(new THREE.Color('#fff'), 0.4).getStyle()), { y: 0.32 }));
+    this.antena.position.set(0.24, TOPO - 0.04, -0.18);
+    this.antena.add(malha(new THREE.CapsuleGeometry(0.022, 0.26, 4, 8), membro, { y: 0.15 }));
+    this.matAntena = new THREE.MeshStandardMaterial({ color: clarear(cor, 0.35), emissive: cor, emissiveIntensity: 0.4, roughness: 0.3 });
+    this.antena.add(malha(new THREE.SphereGeometry(0.075, 16, 12), this.matAntena, { y: 0.33 }));
     this.corpo.add(this.antena);
 
     this.corpo.add(montarChapeu(agente.hat, cor));
+
+    // Sombra de contato, sempre no chão, que acompanha quem anda.
+    const sombra = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 1.1),
+      new THREE.MeshBasicMaterial({ map: SOMBRA_CONTATO, transparent: true, depthWrite: false }),
+    );
+    sombra.rotation.x = -Math.PI / 2;
+    sombra.position.y = 0.015;
+    this.raiz.add(sombra);
+
+    // O objeto do papel, na mesa, ao lado do teclado.
+    this.objeto = montarObjeto(agente.prop, cor);
+    this.objeto.position.copy(this.assento).add(new THREE.Vector3(0.32, 0.83, 1.33));
+    this.objeto.rotation.y = -0.35;
+    this.objeto.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+    });
+    mundo.add(this.objeto);
 
     // Balão de pensamento: três bolinhas subindo.
     this.balao = new THREE.Group();
@@ -592,11 +902,6 @@ class Personagem {
     this.balao.visible = false;
     this.raiz.add(this.balao);
 
-    this.selo = new THREE.Sprite(new THREE.SpriteMaterial({ map: SELO_OK, depthTest: false }));
-    this.selo.scale.set(0.42, 0.42, 1);
-    this.selo.position.set(0, ALTURA_SELO, 0);
-    this.selo.visible = false;
-    this.raiz.add(this.selo);
 
     // Painel holográfico atrás de quem trabalha, sempre virado para a câmera.
     const codigo = CODIGO.clone();
@@ -605,7 +910,7 @@ class Personagem {
       new THREE.PlaneGeometry(1.2, 0.72),
       new THREE.MeshBasicMaterial({ map: codigo, color: cor, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
     );
-    this.painel.position.copy(this.assento).add(new THREE.Vector3(0, 3.25, -0.3));
+    this.painel.position.copy(this.assento).add(new THREE.Vector3(0, 3.65, -0.3));
     this.painel.visible = false;
     mundo.add(this.painel);
 
@@ -629,9 +934,9 @@ class Personagem {
     this.elEstado = document.createElement('span');
     this.elEstado.className = 'estado';
     this.el.append(ponto, this.elNome, this.elEstado);
-    // Etiqueta logo acima da cabeça; balão, selo e painel ficam acima dela.
+    // Etiqueta logo acima da cabeça; balão e painel ficam acima dela.
     this.etiqueta = new CSS2DObject(this.el);
-    this.etiqueta.position.set(0, 1.75, 0);
+    this.etiqueta.position.set(0, 1.85, 0);
     this.etiqueta.center.set(0.5, 1);
     this.raiz.add(this.etiqueta);
 
@@ -654,7 +959,6 @@ class Personagem {
     this.burst = live.burst ?? null;
     // Chamado pelo modelo no meio do café: volta para a mesa.
     if (estado !== 'parado' && this.modo !== 'sentado' && !this.voltando) this.voltar();
-    this.selo.material.map = estado === 'erro' ? SELO_ERRO : SELO_OK;
     this.rotular();
   }
 
@@ -704,22 +1008,35 @@ class Personagem {
     corpo.position.set(0, 0, 0);
     corpo.rotation.set(0, 0, 0);
     corpo.scale.set(1, 1, 1);
-    for (const b of this.bracos) b.rotation.set(0, 0, 0);
+    // Sentado, os braços descansam na mesa em vez de pender ao lado do corpo.
+    const repouso = this.modo === 'sentado' ? -1.0 : 0;
+    for (const b of this.bracos) b.rotation.set(repouso, 0, 0);
     for (const p of this.pernas) p.rotation.set(0, 0, 0);
     this.antena.rotation.set(0, 0, 0);
     this.matCorpo.emissive.set('#000000');
 
     const ativo = this.modo === 'sentado';
     this.balao.visible = ativo && this.estado === 'pensando';
-    this.selo.visible = ativo && (this.estado === 'concluido' || this.estado === 'erro');
     this.painel.visible = ativo && this.estado === 'trabalhando';
     this.mesa.matTela.emissiveIntensity = ativo && this.estado === 'trabalhando' ? 0.9 : 0.05;
 
-    // Piscar, em qualquer estado.
+    // Expressão do estado; fora da mesa, cara de café. Pisca de tempos em
+    // tempos, menos quando os olhos já são um traço.
+    let expressao = ativo ? EXPRESSAO_DO_ESTADO[this.estado] : this.modo === 'pausa' ? 'feliz' : 'normal';
     if (t > this.piscarEm) {
-      const fechado = t - this.piscarEm < 0.12;
-      for (const o of this.olhos) o.scale.y = fechado ? 0.15 : 1;
+      const fechado = t - this.piscarEm < 0.13;
+      if (fechado && (expressao === 'normal' || expressao === 'pensando' || expressao === 'focado')) expressao = 'piscando';
       if (!fechado) this.piscarEm = t + 2.5 + Math.random() * 4;
+    }
+    if (expressao !== this.expressao) {
+      this.expressao = expressao;
+      this.matRosto.map = texturaRosto(this.cor, expressao);
+    }
+
+    const aceso = ativo && (this.estado === 'pensando' || this.estado === 'trabalhando');
+    this.matAntena.emissiveIntensity = aceso ? 1.2 + Math.sin(t * 8) * 0.5 : 0.4;
+    for (const o of this.objeto.children) {
+      if (o.userData.gira) o.rotation.y = t * 1.5;
     }
 
     if (this.modo === 'andando') return this.andar(dt, t);
@@ -754,8 +1071,7 @@ class Personagem {
       }
       case 'concluido': {
         if (desde < 0.7) corpo.position.y = Math.sin((desde / 0.7) * Math.PI) * 0.55;
-        if (desde < 0.7) this.bracos.forEach((b, i) => (b.rotation.z = (i ? 1 : -1) * -1.2));
-        this.selo.position.y = ALTURA_SELO + Math.sin(t * 3) * 0.04;
+        if (desde < 0.7) this.bracos.forEach((b, i) => b.rotation.set(0, 0, (i ? 1 : -1) * 2.4));
         break;
       }
       case 'erro': {
@@ -834,7 +1150,7 @@ class Personagem {
   }
 
   descartar(mundo) {
-    mundo.remove(this.raiz, this.painel, ...this.faiscas);
+    mundo.remove(this.raiz, this.painel, this.objeto, ...this.faiscas);
     this.etiqueta.removeFromParent();
     this.el.remove();
   }
@@ -878,7 +1194,16 @@ controls.maxAzimuthAngle = Math.PI / 2 - 0.1;
 controls.minPolarAngle = 0.55;
 controls.maxPolarAngle = 1.2;
 
-scene.add(new THREE.HemisphereLight('#ffe9d0', '#2a1c12', 1.3));
+// Reflexo de uma sala genérica: é o que dá o brilho de verniz no plástico
+// dos personagens. Fraco, para não clarear a sala, que é noturna.
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.18;
+
+scene.add(new THREE.HemisphereLight('#ffe9d0', '#2a1c12', 1.1));
+// Contraluz fria vinda do fundo: contorna os personagens contra o piso escuro.
+const contraluz = new THREE.DirectionalLight('#a5c4ff', 1.1);
+contraluz.position.set(-12, 10, -14);
+scene.add(contraluz);
 const sol = new THREE.DirectionalLight('#ffe2bf', 2.2);
 sol.castShadow = true;
 sol.shadow.mapSize.set(2048, 2048);

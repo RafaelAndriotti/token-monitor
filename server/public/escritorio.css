@@ -175,6 +175,14 @@ body {
   color: var(--ok);
 }
 
+.etiqueta[data-estado='concluido'] .estado::before {
+  content: '✓ ';
+}
+
+.etiqueta[data-estado='erro'] .estado::before {
+  content: '✕ ';
+}
+
 .etiqueta[data-estado='erro'] {
   border-color: color-mix(in oklab, var(--erro) 70%, transparent);
 }
