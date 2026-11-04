@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Token Monitor · escritório</title>
+    <link rel="stylesheet" href="/escritorio.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="cena"></div>
+
+    <header class="hud">
+      <div>
+        <h1>Token Monitor</h1>
+        <div class="sub">Escritório dos agentes, ao vivo</div>
+      </div>
+      <div class="hud-dir">
+        <label class="projeto">
+          projeto
+          <select id="projeto"></select>
+        </label>
+        <span class="conn" id="conn" data-on="false"><span class="conn-dot"></span><span>sem stream</span></span>
+        <a class="voltar" id="voltar" href="/">painel 2D</a>
+      </div>
+    </header>
+
+    <div class="dica">arraste para girar · role para aproximar</div>
+    <div class="aviso" id="aviso" hidden></div>
+
+    <script type="module" src="/escritorio.js"></script>
+  </body>
+</html>

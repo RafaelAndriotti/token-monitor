@@ -1,0 +1,209 @@
+/* Escritório 3D. A sala é sempre noturna, então a página não tem tema claro. */
+
+:root {
+  --bg: #0c0a09;
+  --surface: rgba(20, 17, 15, 0.82);
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #f5f5f4;
+  --muted: #a8a29e;
+  --ok: #4ade80;
+  --erro: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+#cena {
+  position: fixed;
+  inset: 0;
+}
+
+#cena canvas {
+  display: block;
+}
+
+/* --- Cabeçalho flutuante ------------------------------------------------ */
+
+.hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.hud h1 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}
+
+.hud .sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hud-dir {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.projeto {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.projeto select,
+.voltar {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  text-decoration: none;
+}
+
+.voltar:hover,
+.projeto select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.conn {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--erro);
+}
+
+.conn[data-on='true'] .conn-dot {
+  background: var(--ok);
+}
+
+.dica {
+  position: fixed;
+  right: 16px;
+  bottom: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.aviso {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 420px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+/* --- Etiquetas dos personagens ------------------------------------------ */
+
+.etiqueta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 9px 3px 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.etiqueta .ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--papel);
+  flex: none;
+}
+
+.etiqueta b {
+  font-weight: 600;
+}
+
+.etiqueta .estado {
+  color: var(--muted);
+}
+
+.etiqueta[data-estado='trabalhando'],
+.etiqueta[data-estado='pensando'] {
+  border-color: color-mix(in oklab, var(--papel) 60%, transparent);
+}
+
+.etiqueta[data-estado='concluido'] .estado {
+  color: var(--ok);
+}
+
+.etiqueta[data-estado='erro'] {
+  border-color: color-mix(in oklab, var(--erro) 70%, transparent);
+}
+
+.etiqueta[data-estado='erro'] .estado {
+  color: var(--erro);
+}
+
+@media (max-width: 640px) {
+  .hud h1 {
+    font-size: 18px;
+  }
+
+  .dica {
+    display: none;
+  }
+
+  /* Sem espaço para todo nome: parado vira só o ponto da cor do papel. */
+  .etiqueta {
+    font-size: 11px;
+    padding: 2px 7px 2px 5px;
+  }
+
+  .etiqueta[data-estado='parado'] {
+    padding: 3px;
+  }
+
+  .etiqueta[data-estado='parado'] b,
+  .etiqueta[data-estado='parado'] .estado {
+    display: none;
+  }
+}

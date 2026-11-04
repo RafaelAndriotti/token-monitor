@@ -198,8 +198,10 @@ input[type='number'] {
   border-radius: 9px;
 }
 
-button.ghost {
+button.ghost,
+a.ghost {
   appearance: none;
+  text-decoration: none;
   background: var(--surface);
   border: 1px solid var(--line-2);
   color: var(--ink-2);
@@ -212,12 +214,14 @@ button.ghost {
     border-color var(--t-hover) ease;
 }
 
-button.ghost:hover {
+button.ghost:hover,
+a.ghost:hover {
   color: var(--ink);
   border-color: var(--muted);
 }
 
-button.ghost:active {
+button.ghost:active,
+a.ghost:active {
   transform: scale(0.97);
 }
 
